@@ -32,6 +32,7 @@ class ModelParameters:
         # Constants for Appetite
         self.A_max = 300  # Maximum appetite
         self.L_A50 = 120  # Ghrelin plasma concentration when appetite is half of its maximum (pM)
+        self.t_half = 45 # half emptying time of stomach (min)
         self.lambda_AG = 0.3  # Factor representing the effect of decreasing glucose concentration on appetite (/mM)
 
         # Constants for switching probabilities
@@ -44,21 +45,16 @@ class ModelParameters:
         # Constants for glucose model
         self.rho_GS = 0.9  # Glucose bioavailability from food (#)
         self.eta_G = 0.2  # Glucose contribution from food (g/g)
-        self.V_G = 12.4  # Glucose distribution volume (L)
-        self.k_XG = 0.0072  # Glucose apparent linear elimination rate (/min)
         self.k_XGE = 0.0036  # Additional glucose clearance rate during exercise (/min)
-        self.k_G = 0.4464  # Rate of constant entry of glucose into plasma (mmol/min)
-        self.k_XS = 0.0154033  # Stomach emptying rate (/min)
         self.k_S = 16.5  # Rate of food intake when eating (g/min)
 
         # Constants for Ghrelin model
-        self.k_LS_max = 4.16  # Maximum rate of Ghrelin production (mM/min)
-        self.lambda_LS = 0.00462098  # Rate of decrease in Ghrelin secretion due to amount in stomach (/g)
         self.k_XL = 0.02  # Rate constant for Ghrelin clearance (/min)
-        self.H_max = 208  # Ghrelin level at maximum (pM)
+        self.L_Max = 208  # Ghrelin level at maximum (pM)
         self.S_50 = 150  # Stomach content at 50% Ghrelin secretion (g)
         self.H_ss = 178  # Ghrelin level at steady state (pM)
         self.G_ss = 5  # Glucose plasma concentration at steady state (mM)
+        self.G_CL = .089  # Glucose clearance rate, from citation 140 in main paper
 
 def E(t, params):
     if params.ETL <= t % 1440 <= params.ETU:
@@ -69,7 +65,7 @@ def E(t, params):
 def H(t, params):
     snacks = params.w_snacks
     meals = sum(params.w_M_peak[m] * np.exp(-0.5 * ((t - params.t_M_mu[m]) / params.t_M_sigma[m]) ** 2)
-                if params.t_M_L[m] <= t <= params.t_M_U[m] else 0 for m in range(4))
+                if params.t_M_L[m] <= t <= params.t_M_U[m] else 0 for m in range(len(params.t_M_mu)))
     return snacks + meals
 
 def dL_dt(L, t, S, params):
@@ -88,7 +84,18 @@ def k_ij(t, S, G, params):
     return params.k_ij0 + params.rho_S_ij * S + params.rho_G_ij * G
 
 def simulate(params):
+
     np.random.seed(42)  # Set RNG seed for reproducibility
+
+    # Calculations
+    params.V_G = 0.2 * params.W
+    params.k_XG = params.G_CL / params.V_G
+    params.k_LS_max = params.k_XL * params.L_Max
+    params.lambda_LS = np.log(2) / params.S_50
+    params.k_G = params.k_XG * params.G0 * params.V_G
+    params.k_XS = np.log(2) / params.t_half
+
+
     t_max = params.tend  # Total time in minutes (1 day)
     dt = params.t_delta  # Time step in minutes
     t = np.arange(params.t0, t_max, dt)
@@ -136,6 +143,7 @@ def simulate(params):
         A_values.append(A(L, G, params))
 
     return t, L_values, G_values, S_values, chi_i_values, A_values, H_values
+
 
 
 def plot_results(t_hours, L_values, G_values, S_values, chi_i_values, H_values, A_values):
