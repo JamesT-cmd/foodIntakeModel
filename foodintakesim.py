@@ -65,7 +65,7 @@ def E(t, params):
 def H(t, params):
     snacks = params.w_snacks
     meals = sum(params.w_M_peak[m] * np.exp(-0.5 * ((t - params.t_M_mu[m]) / params.t_M_sigma[m]) ** 2)
-                if params.t_M_L[m] <= t <= params.t_M_U[m] else 0 for m in range(len(params.t_M_mu)))
+                if params.t_M_L[m] <= t <= params.t_M_U[m] else 0 for m in range(4))
     return snacks + meals
 
 def dL_dt(L, t, S, params):
@@ -73,6 +73,9 @@ def dL_dt(L, t, S, params):
 
 def dG_dt(G, t, E, S, params):
     return - (params.k_XG + params.k_XGE * E(t, params)) * G + (params.k_G + params.k_XS * params.eta_G * params.rho_GS * S) / params.V_G
+
+def dS_dt(S, t, chi_i, params):
+    return -params.k_XS * S + chi_i * params.k_S
 
 def A(L, G, params):
     return params.A_max * L / (params.L_A50 + L) * np.exp(-params.lambda_AG * G)
@@ -85,7 +88,7 @@ def k_ij(t, S, G, params):
 
 def simulate(params):
 
-    np.random.seed(42)  # Set RNG seed for reproducibility
+    #np.random.seed(42)  # Set RNG seed for reproducibility
 
     # Calculations
     params.V_G = 0.2 * params.W
@@ -94,7 +97,6 @@ def simulate(params):
     params.lambda_LS = np.log(2) / params.S_50
     params.k_G = params.k_XG * params.G0 * params.V_G
     params.k_XS = np.log(2) / params.t_half
-
 
     t_max = params.tend  # Total time in minutes (1 day)
     dt = params.t_delta  # Time step in minutes
@@ -106,6 +108,7 @@ def simulate(params):
     S = params.S0
     chi_i = 0
 
+    Q_values = []
     L_values = []
     G_values = []
     S_values = []
@@ -120,6 +123,7 @@ def simulate(params):
 
         # Update indicator function chi_i
         u = np.random.uniform()
+
         if chi_i == 0:
             if u <= 1 - np.exp(-k_ji(time, H_current, A(L, G, params), params) * dt):
                 chi_i = 1
@@ -133,17 +137,19 @@ def simulate(params):
         # Update L, G, S using ODE integrator
         L = odeint(dL_dt, L, [time, time + dt], args=(S, params))[-1]
         G = odeint(dG_dt, G, [time, time + dt], args=(E, S, params))[-1]
-        S = S + (-params.k_XS * S + chi_i * params.k_S) * dt
+        S = odeint(dS_dt, S, [time, time + dt], args=(chi_i, params))[-1]
 
         # Store values
+        Q_values.append(Q)
         L_values.append(L)
         G_values.append(G)
         S_values.append(S)
         chi_i_values.append(chi_i)
         A_values.append(A(L, G, params))
 
-    return t, L_values, G_values, S_values, chi_i_values, A_values, H_values
+    print("\n\nTotal amount of food consumed: " + str(sum(Q_values)) + " grams\n")
 
+    return t, L_values, G_values, S_values, chi_i_values, A_values, H_values
 
 
 def plot_results(t_hours, L_values, G_values, S_values, chi_i_values, H_values, A_values):
@@ -171,6 +177,10 @@ def plot_results(t_hours, L_values, G_values, S_values, chi_i_values, H_values, 
     ax1b.set_ylabel('Ghrelin (pM) and Stomach Volume (g)')
     ax1b.legend(loc='upper right')
 
+    # Ensure the lower limits of the right and left axes are set to 0
+    ax1.set_ylim(bottom=0)
+    ax1b.set_ylim(bottom=0)
+
     # Adding horizontal bars to the left y-axis (Glucose)
     y_ticks = ax1.get_yticks()
     for y_value in y_ticks:
@@ -189,6 +199,10 @@ def plot_results(t_hours, L_values, G_values, S_values, chi_i_values, H_values, 
     ax2b.set_ylabel('Appetite')
     ax2b.legend(loc='upper right')
 
+    # Ensure the lower limits of the right and left axes are set to 0
+    ax2.set_ylim(bottom=0)
+    ax2b.set_ylim(bottom=0)
+
     # Adding horizontal bars to the left y-axis (Intake State and Habits)
     y_ticks = ax2.get_yticks()
     for y_value in y_ticks:
@@ -196,7 +210,6 @@ def plot_results(t_hours, L_values, G_values, S_values, chi_i_values, H_values, 
 
     plt.tight_layout()
     plt.show()
-
 
 def main():
     params = ModelParameters()
@@ -208,6 +221,6 @@ def main():
     # Plot the results
     plot_results(t_hours, L_values, G_values, S_values, chi_i_values, H_values, A_values)
 
+
 if __name__ == "__main__":
     main()
-
