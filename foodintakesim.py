@@ -65,7 +65,7 @@ def E(t, params):
 def H(t, params):
     snacks = params.w_snacks
     meals = sum(params.w_M_peak[m] * np.exp(-0.5 * ((t - params.t_M_mu[m]) / params.t_M_sigma[m]) ** 2)
-                if params.t_M_L[m] <= t <= params.t_M_U[m] else 0 for m in range(4))
+                if params.t_M_L[m] <= t <= params.t_M_U[m] else 0 for m in range(len(params.t_M_L)))
     return snacks + meals
 
 def dL_dt(L, t, S, params):
@@ -88,7 +88,7 @@ def k_ij(t, S, G, params):
 
 def simulate(params):
 
-    #np.random.seed(42)  # Set RNG seed for reproducibility
+    np.random.seed(42)  # Set RNG seed for reproducibility
 
     # Calculations
     params.V_G = 0.2 * params.W
