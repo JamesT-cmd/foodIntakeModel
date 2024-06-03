@@ -64,8 +64,8 @@ def E(t, params):
 
 def H(t, params):
     snacks = params.w_snacks
-    meals = sum(params.w_M_peak[m] * np.exp(-0.5 * ((t - params.t_M_mu[m]) / params.t_M_sigma[m]) ** 2)
-                if params.t_M_L[m] <= t <= params.t_M_U[m] else 0 for m in range(len(params.t_M_L)))
+    meals = sum(params.w_M_peak[m] * np.exp(-0.5 * ((t - params.t_M_mu[m]) / params.t_M_sigma[m]) ** 2) for m in range(len(params.t_M_L)))
+                #if params.t_M_L[m] <= t <= params.t_M_U[m] else 0 for m in range(len(params.t_M_L)))
     return snacks + meals
 
 def dL_dt(L, t, S, params):
@@ -80,23 +80,23 @@ def dS_dt(S, t, chi_i, params):
 def A(L, G, params):
     return params.A_max * L / (params.L_A50 + L) * np.exp(-params.lambda_AG * G)
 
-def k_ji(t, H, A, params):
+def k_ji(H, A, params):
     return params.rho_HA * H * (1 + params.w_A * A / params.A_max)
 
-def k_ij(t, S, G, params):
+def k_ij(S, G, params):
     return params.k_ij0 + params.rho_S_ij * S + params.rho_G_ij * G
 
 def simulate(params):
 
-    np.random.seed(42)  # Set RNG seed for reproducibility
+    #np.random.seed(42)  # Set RNG seed for reproducibility
 
     # Calculations
-    params.V_G = 0.2 * params.W
-    params.k_XG = params.G_CL / params.V_G
-    params.k_LS_max = params.k_XL * params.L_Max
-    params.lambda_LS = np.log(2) / params.S_50
-    params.k_G = params.k_XG * params.G0 * params.V_G
-    params.k_XS = np.log(2) / params.t_half
+    params.V_G = 0.2 * params.W # Glucose distribution volume (L)
+    params.k_XG = params.G_CL / params.V_G  # Glucose apparent linear elimination rate (min^-1)
+    params.k_LS_max = params.k_XL * params.L_Max # Maximum rate of Ghrelin production (min^-1)
+    params.lambda_LS = np.log(2) / params.S_50 # Rate of decrease in ghrelin secretion (g^-1)
+    params.k_G = params.k_XG * params.G0 * params.V_G # Rate of glucose entry into plasma from hepatic glucose output (mmol/min)
+    params.k_XS = np.log(2) / params.t_half # Stomach emptying rate (min^-1)
 
     t_max = params.tend  # Total time in minutes (1 day)
     dt = params.t_delta  # Time step in minutes
@@ -125,10 +125,10 @@ def simulate(params):
         u = np.random.uniform()
 
         if chi_i == 0:
-            if u <= 1 - np.exp(-k_ji(time, H_current, A(L, G, params), params) * dt):
+            if u <= 1 - np.exp(-k_ji(H_current, A(L, G, params), params) * dt):
                 chi_i = 1
         else:
-            if u <= 1 - np.exp(-k_ij(time, S, G, params) * dt):
+            if u <= 1 - np.exp(-k_ij(S, G, params) * dt):
                 chi_i = 0
 
         # Calculate food intake quantity Q
